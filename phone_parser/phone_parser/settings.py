@@ -12,6 +12,13 @@ BOT_NAME = "phone_parser"
 SPIDER_MODULES = ["phone_parser.spiders"]
 NEWSPIDER_MODULE = "phone_parser.spiders"
 
+LOG_FILE = 'logs.log'
+LOG_FILE_APPEND = False
+LOG_ENCODING = 'utf-8'
+LOG_LEVEL = 'DEBUG'
+LOG_FORMAT = '%(asctime)s - [%(levelname)s] - %(message)s'
+LOG_DATEFORMAT = '%d.%m.%Y %H:%M:%S'
+LOG_STDOUT = True
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = "phone_parser (+http://www.yourdomain.com)"
@@ -25,9 +32,9 @@ ROBOTSTXT_OBEY = False
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
-DOWNLOAD_DELAY = 1
+DOWNLOAD_DELAY = 2
 # The download delay setting will honor only one of:
-#CONCURRENT_REQUESTS_PER_DOMAIN = 16
+CONCURRENT_REQUESTS_PER_DOMAIN = 4
 #CONCURRENT_REQUESTS_PER_IP = 16
 
 # Disable cookies (enabled by default)
@@ -50,9 +57,12 @@ DOWNLOAD_DELAY = 1
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
-#    "phone_parser.middlewares.PhoneParserDownloaderMiddleware": 543,
-#}
+DOWNLOADER_MIDDLEWARES = {
+    # 'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
+    # 'scrapy_user_agents.middlewares.RandomUserAgentMiddleware': 400,
+    'rotating_proxies.middlewares.RotatingProxyMiddleware': 610,
+    'rotating_proxies.middlewares.BanDetectionMiddleware': 620,
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -63,7 +73,7 @@ DOWNLOAD_DELAY = 1
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-   "phone_parser.pipelines.PhoneParserPipeline": 300,
+   'phone_parser.pipelines.PhoneParserPipeline': 300,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
@@ -91,3 +101,15 @@ ITEM_PIPELINES = {
 REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = "utf-8"
+
+ROTATING_PROXY_LIST = [
+    # 'http://104.250.117.8:7070',
+    # 'http://203.74.125.18:8888',
+    # 'http://209.13.186.20:80'
+]
+ROTATING_PROXY_CLOSE_SPIDER = True
+ROTATING_PROXY_PAGE_RETRY_TIMES = 3
+# RANDOM_UA_PER_PROXY = True
+# AUTOTHROTTLE_ENABLED = True
+# AUTOTHROTTLE_START_DELAY = 20
+# AUTOTHROTTLE_MAX_DELAY = 60
