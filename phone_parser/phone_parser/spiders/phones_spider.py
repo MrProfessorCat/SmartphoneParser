@@ -4,6 +4,9 @@ import scrapy
 import urllib.parse
 
 from phone_parser.items import PhoneParserItem
+from selenium import webdriver
+from selenium.webdriver.firefox.service import Service
+from webdriver_manager.firefox import GeckoDriverManager
 
 
 OZON_BASE_URL = 'https://www.ozon.ru'
@@ -57,6 +60,11 @@ class PhonesSpider(scrapy.Spider):
                 urllib.parse.urljoin(OZON_BASE_URL, next_page),
                 callback=self.parse
             )
+
+    def start_requests(self):
+        service = Service(executable_path=GeckoDriverManager().install())
+        driver = webdriver.Firefox(service=service)
+        driver.get('https://www.ozon.ru/category/telefony-i-smart-chasy-15501/?sorting=rating&type=49659') # noqa E501
 
     def parse_phone(self, response):
         """Parsing page with phone information"""
