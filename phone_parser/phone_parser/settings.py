@@ -18,7 +18,7 @@ LOG_ENCODING = 'utf-8'
 LOG_LEVEL = 'DEBUG'
 LOG_FORMAT = '%(asctime)s - [%(levelname)s] - %(message)s'
 LOG_DATEFORMAT = '%d.%m.%Y %H:%M:%S'
-LOG_STDOUT = True
+LOG_STDOUT = False
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = "phone_parser (+http://www.yourdomain.com)"
@@ -27,12 +27,12 @@ LOG_STDOUT = True
 ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-#CONCURRENT_REQUESTS = 32
+CONCURRENT_REQUESTS = 4
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
-DOWNLOAD_DELAY = 2
+DOWNLOAD_DELAY = 5
 # The download delay setting will honor only one of:
 CONCURRENT_REQUESTS_PER_DOMAIN = 4
 #CONCURRENT_REQUESTS_PER_IP = 16

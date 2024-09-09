@@ -7,6 +7,7 @@ import scrapy
 
 
 class PhoneParserItem(scrapy.Item):
+    phone_num = scrapy.Field()
     phone_name = scrapy.Field()
     url = scrapy.Field()
     phone_os = scrapy.Field()

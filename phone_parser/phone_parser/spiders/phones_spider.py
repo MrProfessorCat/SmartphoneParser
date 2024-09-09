@@ -1,15 +1,13 @@
 import logging
-import requests
-from http import HTTPStatus
 
 import scrapy
-import urllib
+import urllib.parse
 
 from phone_parser.items import PhoneParserItem
 
-PROXIES_URL = 'https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc' # noqa E501
 
 OZON_BASE_URL = 'https://www.ozon.ru'
+FEATURES = 'features'
 
 MAX_PHONES_TO_PARSE = 100
 
@@ -20,11 +18,11 @@ VERSION = 'Версия'
 NO_VERSION = '(версия не указана)'
 
 
-def preload_proxies():
-    data = requests.get(PROXIES_URL)
-    if data.status_code == HTTPStatus.OK:
-        proxies = data.json().get('data')
-        proxies.sort(key=lambda i: i.get('speed'))
+# def preload_proxies():
+#     data = requests.get(PROXIES_URL)
+#     if data.status_code == HTTPStatus.OK:
+#         proxies = data.json().get('data')
+#         proxies.sort(key=lambda i: i.get('speed'))
 
 
 class PhonesSpider(scrapy.Spider):
@@ -41,8 +39,10 @@ class PhonesSpider(scrapy.Spider):
                 return
             product_type = product.css(
                 'span.tsBody400Small font::text').get()
-            url = product.css('a.tile-hover-target::attr(href)').get()
             if product_type == SMARTPHONE:
+                url = product.css('a.tile-hover-target::attr(href)').get()
+                # following to the page with current phone characteristics
+                url = urllib.parse.urljoin(url, FEATURES)
                 logging.info(f'{self.phones_num + 1} on parsing -> {url}')
                 yield response.follow(
                     url, callback=self.parse_phone,
@@ -52,29 +52,33 @@ class PhonesSpider(scrapy.Spider):
 
         next_page = response.css(
             'a.e3q.b2113-a0.b2113-b6.b2113-b1::attr(href)').get()
-        if next_page is not None:
+        if next_page:
             yield response.follow(
                 urllib.parse.urljoin(OZON_BASE_URL, next_page),
                 callback=self.parse
             )
 
     def parse_phone(self, response):
-        # no version https://www.ozon.ru/product/samsung-smartfon-galaxy-s23-5g-global-8-512-gb-rozovyy-870152865/?__rr=1 # noqa E501
-        # not parsed https://www.ozon.ru/product/poco-smartfon-poco-x6-5g-rostest-eac-12-256-gb-siniy-1388605639/ # noqa E501
         """Parsing page with phone information"""
         # getting phone name
         phone_num = response.meta.get('phone_num')
-        phone_name = response.css('h1.m8p_27::text').get()
+        phone_name = response.css('a.qm1_27::text').get()
         if not phone_name:
             logging.error(f'{phone_num} failed getting name')
-        logging.info(f'{phone_num} got name -> {phone_name}')
+        else:
+            phone_name = phone_name.strip().replace('\n', '')
+            logging.info(f'{phone_num} got name -> {phone_name}')
+
         # getting block with characteristics
-        characteristics = response.css('div#section-characteristics')
+        characteristics = response.css('div.rk4_27')
+
         if not characteristics:
             logging.error(
                 f'{phone_num} failed getting characteristics section'
             )
-        logging.info(f'{phone_num} got characteristics section')
+        else:
+            logging.info(f'{phone_num} got characteristics section')
+
         # getting all blocks in characteristics block
         blocks = characteristics.css('div.ku6_27')
         if not blocks:
@@ -83,6 +87,7 @@ class PhonesSpider(scrapy.Spider):
             )
         else:
             logging.info(f'{phone_num} got characteristics blocks')
+
         # searching for block "Основные"
         for block in blocks:
             block_title = block.css('div.uk6_27::text').get()
@@ -99,16 +104,22 @@ class PhonesSpider(scrapy.Spider):
                     'from main block'
                 )
             )
-        logging.info(f'{phone_num} got characteristics from main block')
+        else:
+            logging.info(f'{phone_num} got characteristics from main block')
+
         # searching for characteristic with name "Операционная система"
         for characteristic in main_characteristics:
             character_name = characteristic.css('span.k9u_27::text').get()
             if character_name == OPERATING_SYSTEM:
                 logging.info(f'{phone_num} got OS section')
-                operating_system = characteristic.css('a::text').get()
+                operating_system = characteristic.css(
+                    'dd.ku9_27::text, a::text').get()
                 if not operating_system:
                     logging.error(f'{phone_num} failed getting OS name')
-                logging.info(f'{phone_num} got OS name')
+                else:
+                    logging.info(
+                        f'{phone_num} got OS name -> {operating_system}'
+                    )
                 break
 
         # after getting operating system name iterating over
@@ -121,20 +132,24 @@ class PhonesSpider(scrapy.Spider):
                     'dd.ku9_27::text, a::text').get()
                 if not os_version:
                     logging.error(f'{phone_num} failed getting OS version')
-                logging.info(f'{phone_num} got OS version -> {os_version}')
+                else:
+                    logging.info(f'{phone_num} got OS version -> {os_version}')
                 yield PhoneParserItem(
                     {
+                        'phone_num': phone_num,
                         'phone_name': phone_name,
                         'url': response.url,
                         'phone_os': os_version
                     }
                 )
                 break
+
         # some pages do not contain OS version, but only OS type.
         # In such cases there will be record "<os_type> (версия не указана)"
         else:
             yield PhoneParserItem(
                 {
+                    'phone_num': phone_num,
                     'phone_name': phone_name,
                     'url': response.url,
                     'phone_os': f'{operating_system} {NO_VERSION}'

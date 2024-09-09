@@ -11,6 +11,7 @@ Base = declarative_base()
 class PhoneInfo(Base):
     __tablename__ = 'phone_info'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    phone_num = Column(Integer)
     phone_name = Column(String(512))
     url = Column(Text)
     phone_os = Column(String(128))
@@ -37,10 +38,7 @@ class PhoneParserPipeline:
             df = pd.DataFrame(self.phones_op_systems, columns=('OS version',))
             print(df.value_counts())
             df.value_counts().to_csv(
-                'res.csv', encoding='utf-8',
-                header=(
-                    'OS versions stat on '
-                    f'{datetime.now().strftime("%d.%m.%Y %H:%M")}'
-                )
+                f'{datetime.now().strftime("%d_%m_%Y %H_%M")}.csv',
+                encoding='utf-8'
             )
         self.session.close()
