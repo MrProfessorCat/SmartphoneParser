@@ -4,12 +4,11 @@ import scrapy
 import urllib.parse
 
 from phone_parser.items import PhoneParserItem
-from selenium import webdriver
-from selenium.webdriver.firefox.service import Service
-from webdriver_manager.firefox import GeckoDriverManager
+from phone_parser.selenium_parser import SelPhoneParser
 
 
 OZON_BASE_URL = 'https://www.ozon.ru'
+START_URL = 'https://www.ozon.ru/category/telefony-i-smart-chasy-15501/?sorting=rating&type=49659' # noqa E501
 FEATURES = 'features'
 
 MAX_PHONES_TO_PARSE = 100
@@ -30,7 +29,7 @@ NO_VERSION = '(версия не указана)'
 
 class PhonesSpider(scrapy.Spider):
     name = 'phones_spider'
-    start_urls = ['https://www.ozon.ru/category/telefony-i-smart-chasy-15501/?sorting=rating&type=49659',] # noqa E501
+    start_urls = [START_URL,]
     phones_num = 0
 
     def parse(self, response):
@@ -60,11 +59,6 @@ class PhonesSpider(scrapy.Spider):
                 urllib.parse.urljoin(OZON_BASE_URL, next_page),
                 callback=self.parse
             )
-
-    def start_requests(self):
-        service = Service(executable_path=GeckoDriverManager().install())
-        driver = webdriver.Firefox(service=service)
-        driver.get('https://www.ozon.ru/category/telefony-i-smart-chasy-15501/?sorting=rating&type=49659') # noqa E501
 
     def parse_phone(self, response):
         """Parsing page with phone information"""
@@ -163,3 +157,28 @@ class PhonesSpider(scrapy.Spider):
                     'phone_os': f'{operating_system} {NO_VERSION}'
                 }
             )
+
+
+class SelPhoneSpider(PhonesSpider):
+    name = 'sel_phone_spider'
+
+    def start_requests(self):
+        sel_parser = SelPhoneParser()
+        page_url = START_URL
+        while self.phones_num <= MAX_PHONES_TO_PARSE:
+            sel_parser.open_page(
+                page_url,
+                reload=True if not self.phones_num else False
+            )
+            sel_parser.scroll_down()
+            urls = sel_parser.get_products_urls()
+            for url in urls:
+                if self.phones_num == MAX_PHONES_TO_PARSE:
+                    sel_parser.quit()
+                    return
+                yield scrapy.Request(
+                    url, callback=self.parse_phone,
+                    meta={'phone_num': self.phones_num + 1}
+                )
+                self.phones_num += 1
+            page_url = sel_parser.get_next_page_url()
