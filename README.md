@@ -1,7 +1,8 @@
 # SmartphoneParser
 
 ##### SmartphoneParser is a python script for collecting statistics of the most popular smartphone operating systems on the Ozon market. As a result it creates .csv file with statistic.
-[http://84.252.142.175/redoc/](http://84.252.142.175/redoc/)
+
+
 ### TECH
 
 * [Python 3.11.4](https://www.python.org/)
