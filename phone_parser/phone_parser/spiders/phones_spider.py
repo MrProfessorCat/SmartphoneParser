@@ -1,11 +1,14 @@
 import logging
-
-import scrapy
 import urllib.parse
 
+import scrapy
+from phone_parser.css_selectors import (CHARACTER_NAME, CHARACTER_TITLE,
+                                        CHARACTERISTICS_BLOCKS,
+                                        MAIN_CHARECTERS, NEXT_BUTTON, OS,
+                                        OS_VERSION, PHONE_NAME, PRODUCT_TYPE,
+                                        PRODUCT_URL, PRODUCTS_BLOCKS)
 from phone_parser.items import PhoneParserItem
 from phone_parser.selenium_parser import SelPhoneParser
-
 
 OZON_BASE_URL = 'https://www.ozon.ru'
 START_URL = 'https://www.ozon.ru/category/telefony-i-smart-chasy-15501/?sorting=rating&type=49659' # noqa E501
@@ -33,16 +36,13 @@ class PhonesSpider(scrapy.Spider):
     phones_num = 0
 
     def parse(self, response):
-        products = response.css(
-            'div.widget-search-result-container div.o2j_23'
-        )
+        products = response.css(PRODUCTS_BLOCKS)
         for product in products:
             if self.phones_num == MAX_PHONES_TO_PARSE:
                 return
-            product_type = product.css(
-                'span.tsBody400Small font::text').get()
+            product_type = product.css(PRODUCT_TYPE).get()
             if product_type == SMARTPHONE:
-                url = product.css('a.tile-hover-target::attr(href)').get()
+                url = product.css(PRODUCT_URL).get()
                 # following to the page with current phone characteristics
                 url = urllib.parse.urljoin(url, FEATURES)
                 logging.info(f'{self.phones_num + 1} on parsing -> {url}')
@@ -52,8 +52,7 @@ class PhonesSpider(scrapy.Spider):
                 )
                 self.phones_num += 1
 
-        next_page = response.css(
-            'a.e3q.b2113-a0.b2113-b6.b2113-b1::attr(href)').get()
+        next_page = response.css(NEXT_BUTTON).get()
         if next_page:
             yield response.follow(
                 urllib.parse.urljoin(OZON_BASE_URL, next_page),
@@ -64,26 +63,16 @@ class PhonesSpider(scrapy.Spider):
         """Parsing page with phone information"""
         # getting phone name
         phone_num = response.meta.get('phone_num')
-        phone_name = response.css('a.qm1_27::text').get()
+        phone_name = response.css(PHONE_NAME).get()
         if not phone_name:
             logging.error(f'{phone_num} failed getting name')
         else:
             phone_name = phone_name.strip().replace('\n', '')
             logging.info(f'{phone_num} got name -> {phone_name}')
 
-        # getting block with characteristics
-        characteristics = response.css('div.rk4_27')
-
-        if not characteristics:
-            logging.error(
-                f'{phone_num} failed getting characteristics section'
-            )
-        else:
-            logging.info(f'{phone_num} got characteristics section')
-
         # getting all blocks in characteristics block
-        blocks = characteristics.css('div.ku6_27')
-        if not blocks:
+        characteristics_blocks = response.css(CHARACTERISTICS_BLOCKS)
+        if not characteristics_blocks:
             logging.error(
                 f'{phone_num} failed getting characteristics blocks'
             )
@@ -91,14 +80,14 @@ class PhonesSpider(scrapy.Spider):
             logging.info(f'{phone_num} got characteristics blocks')
 
         # searching for block "Основные"
-        for block in blocks:
-            block_title = block.css('div.uk6_27::text').get()
+        for block in characteristics_blocks:
+            block_title = block.css(CHARACTER_TITLE).get()
             if block_title == MAIN_CHARACTERISTICS:
                 logging.info(f'{phone_num} main block found')
                 break
 
         # getting all characteristics from block "Основные"
-        main_characteristics = block.css('dl.u9k_27')
+        main_characteristics = block.css(MAIN_CHARECTERS)
         if not main_characteristics:
             logging.error(
                 (
@@ -111,11 +100,10 @@ class PhonesSpider(scrapy.Spider):
 
         # searching for characteristic with name "Операционная система"
         for characteristic in main_characteristics:
-            character_name = characteristic.css('span.k9u_27::text').get()
+            character_name = characteristic.css(CHARACTER_NAME).get()
             if character_name == OPERATING_SYSTEM:
                 logging.info(f'{phone_num} got OS section')
-                operating_system = characteristic.css(
-                    'dd.ku9_27::text, a::text').get()
+                operating_system = characteristic.css(OS).get()
                 if not operating_system:
                     logging.error(f'{phone_num} failed getting OS name')
                 else:
@@ -127,11 +115,10 @@ class PhonesSpider(scrapy.Spider):
         # after getting operating system name iterating over
         # main characteristic searching for "Версия {OS_name}"
         for characteristic in main_characteristics:
-            character_name = characteristic.css('span.k9u_27::text').get()
+            character_name = characteristic.css(CHARACTER_NAME).get()
             if character_name == f'{VERSION} {operating_system}':
                 logging.info(f'{phone_num} got OS version section')
-                os_version = characteristic.css(
-                    'dd.ku9_27::text, a::text').get()
+                os_version = characteristic.css(OS_VERSION).get()
                 if not os_version:
                     logging.error(f'{phone_num} failed getting OS version')
                 else:
@@ -160,25 +147,18 @@ class PhonesSpider(scrapy.Spider):
 
 
 class SelPhoneSpider(PhonesSpider):
-    name = 'sel_phone_spider'
+    name = 'sel_phones_spider'
 
     def start_requests(self):
         sel_parser = SelPhoneParser()
-        page_url = START_URL
-        while self.phones_num <= MAX_PHONES_TO_PARSE:
-            sel_parser.open_page(
-                page_url,
-                reload=True if not self.phones_num else False
+        sel_parser.open_page(START_URL)
+        phones_urls = sel_parser.get_phones_urls(MAX_PHONES_TO_PARSE)
+        sel_parser.quit()
+
+        logging.info(f'Captured {len(phones_urls)} phones urls')
+
+        for phone_num, url in enumerate(phones_urls, start=1):
+            yield scrapy.Request(
+                url, callback=self.parse_phone,
+                meta={'phone_num': phone_num}
             )
-            sel_parser.scroll_down()
-            urls = sel_parser.get_products_urls()
-            for url in urls:
-                if self.phones_num == MAX_PHONES_TO_PARSE:
-                    sel_parser.quit()
-                    return
-                yield scrapy.Request(
-                    url, callback=self.parse_phone,
-                    meta={'phone_num': self.phones_num + 1}
-                )
-                self.phones_num += 1
-            page_url = sel_parser.get_next_page_url()

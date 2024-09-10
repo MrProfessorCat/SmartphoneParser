@@ -1,20 +1,24 @@
-from time import sleep
 import urllib.parse
+from time import sleep
+from typing import Optional
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.service import Service
-# from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support import expected_conditions
+from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.firefox import GeckoDriverManager
-# from webdriver_manager.chrome import ChromeDriverManager
 
-BASE_SLEEP = 3
+from phone_parser.css_selectors import (NEXT_BUTTON, PRODUCT_TYPE, PRODUCT_URL,
+                                        PRODUCTS_BLOCKS)
+
 SMARTPHONE = 'Смартфон'
 FEATURES = 'features'
 BASE_URL = 'https://www.ozon.ru/category/telefony-i-smart-chasy-15501/?sorting=rating&type=49659' # noqa E501
 
 
 class SelPhoneParser():
+    # sleep delay in seconds
     load_sleep = 4
 
     def __init__(self):
@@ -23,49 +27,71 @@ class SelPhoneParser():
         )
         self.driver = webdriver.Firefox(service=service)
 
-    def quit(self):
+    def quit(self) -> None:
+        """Closing driver"""
         self.driver.quit()
 
-    def open_page(self, url, reload=True):
+    def open_page(self, url: str, reload: bool = True) -> None:
+        """Load page with passed url.
+        The page is blocked on first visit. Restart required.
+        """
         self.driver.get(url)
         self.driver.maximize_window()
-        sleep(self.load_sleep)
         if reload:
-            self.driver.refresh()
             sleep(self.load_sleep)
+            self.driver.refresh()
+        wait = WebDriverWait(self.driver, timeout=self.load_sleep)
+        wait.until(
+            expected_conditions.presence_of_element_located(
+                (By.CSS_SELECTOR, PRODUCTS_BLOCKS)
+            )
+        )
 
-    def scroll_down(self):
+    def scroll_down(self) -> bool:
+        """Scrolling page down
+        Returns True if the bottom of page is reached,
+        otherwise returns False
+        """
         SCROLL_CMD = 'window.scrollTo(0, document.body.scrollHeight);'
         GET_HEIGHT_CMD = 'return document.body.scrollHeight'
 
         page_height = self.driver.execute_script(GET_HEIGHT_CMD)
-        while True:
-            self.driver.execute_script(SCROLL_CMD)
-            sleep(self.load_sleep)
-            new_height = self.driver.execute_script(GET_HEIGHT_CMD)
-            if new_height == page_height:
-                break
-            page_height = new_height
+        self.driver.execute_script(SCROLL_CMD)
+        sleep(self.load_sleep)
+        new_height = self.driver.execute_script(GET_HEIGHT_CMD)
+        return True if new_height == page_height else False
 
-    def get_products_urls(self):
+    def get_products_urls(self) -> list[str]:
+        """Gathering links to smartphone features
+        form loaded page
+        """
         products = self.driver.find_elements(
-            By.CSS_SELECTOR,
-            'div.widget-search-result-container div.o2j_23'
+            By.CSS_SELECTOR, PRODUCTS_BLOCKS
         )
         urls = []
         for product in products:
-            product_type = product.find_element(
-                By.CSS_SELECTOR, 'span.tsBody400Small font')
+            product_type = product.find_element(By.CSS_SELECTOR, PRODUCT_TYPE)
             if product_type.text == SMARTPHONE:
-                url = product.find_element(
-                    By.CSS_SELECTOR, 'a.tile-hover-target')
-                url = urllib.parse.urljoin(
-                    url.get_attribute('href'), FEATURES)
+                url = product.find_element(By.CSS_SELECTOR, PRODUCT_URL)
+                url = urllib.parse.urljoin(url.get_attribute('href'), FEATURES)
                 urls.append(url)
         return urls
 
-    def get_next_page_url(self):
+    def get_next_page_url(self) -> Optional[str]:
+        """Returns link to the next page"""
         return self.driver.find_element(
-            By.CSS_SELECTOR,
-            'a.e3q.b2113-a0.b2113-b6.b2113-b1'
+            By.CSS_SELECTOR, NEXT_BUTTON
         ).get_attribute('href')
+
+    def get_phones_urls(self, amount: int) -> list[str]:
+        """Gathering <amount> links to phones features
+        """
+        phones_urls = []
+        while len(phones_urls) < amount:
+            reached_page_bottom = self.scroll_down()
+            phones_urls.extend(self.get_products_urls())
+            phones_urls = list(set(phones_urls))
+            if reached_page_bottom:
+                next_page_url = self.get_next_page_url()
+                self.open_page(next_page_url, reload=False)
+        return phones_urls[:amount]

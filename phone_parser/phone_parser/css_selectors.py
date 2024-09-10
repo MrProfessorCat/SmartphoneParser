@@ -1,0 +1,12 @@
+PRODUCTS_BLOCKS = 'div.widget-search-result-container div.o2j_23'
+PRODUCT_TYPE = 'span.tsBody400Small font'
+PRODUCT_URL = 'a.tile-hover-target'
+NEXT_BUTTON = 'a.e3q.b2113-a0.b2113-b6.b2113-b1'
+
+PHONE_NAME = 'a.qm1_27::text'
+CHARACTERISTICS_BLOCKS = 'div.rk4_27 div.ku6_27'
+CHARACTER_TITLE = 'div.uk6_27::text'
+MAIN_CHARECTERS = 'dl.u9k_27'
+CHARACTER_NAME = 'span.k9u_27::text'
+OS = 'dd.ku9_27::text, a::text'
+OS_VERSION = 'dd.ku9_27::text, a::text'
